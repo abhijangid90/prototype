@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Drag-and-Drop Website Builder Prototype</title>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.20.7/babel.min.js"></script>
+<style>
+  body, html {
+    margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  #root {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    background: #007bff;
+    color: white;
+    padding: 1rem 2rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    user-select: none;
+  }
+  .builder-wrapper {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  /* Sidebar for draggable elements */
+  .sidebar {
+    width: 180px;
+    background: white;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar h3 {
+    padding: 1rem;
+    margin: 0;
+    border-bottom: 1px solid #ddd;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #333;
+  }
+  .draggable-element {
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 1rem;
+    background: #f8f9fa;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    color: #333;
+    cursor: grab;
+    user-select: none;
+    transition: background 0.2s, border-color 0.2s;
+    text-align: center;
+  }
+  .draggable-element:active {
+    cursor: grabbing;
+    background: #e2e6ea;
+    border-color: #007bff;
+  }
+
+  /* Canvas */
+  .canvas-container {
+    flex: 1;
+    padding: 1rem;
+    background: white;
+    position: relative;
+    overflow: auto;
+  }
+  .canvas {
+    width: 100%;
+    max-width: 900px;
+    min-height: 600px;
+    border: 2px dashed #bbb;
+    margin: 0 auto;
+    position: relative;
+    background: #fff;
+    box-shadow: 0 0 9px #ccc;
+    border-radius: 8px;
+  }
+  /* Grid overlay for template */
+  .canvas-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(20, 30px);
+    gap: 0;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    user-select: none;
+  }
+  .canvas-grid > div {
+    border: 1px solid #eee;
+  }
+  /* Draggable elements on canvas */
+  .canvas-element {
+    position: absolute;
+    border: 2px solid transparent;
+    padding: 4px 8px;
+    border-radius: 5px;
+    background: #fefefe;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.1);
+    transition: border-color 0.15s ease;
+  }
+  .canvas-element.selected {
+    border-color: #007bff;
+    background: #e7f0fe;
+    cursor: grabbing;
+  }
+  /* Text element */
+  .text-element {
+    font-size: 1rem;
+    color: #333;
+  }
+  /* Button element */
+  .button-element {
+    padding: 6px 14px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    user-select: none;
+  }
+  /* Image element */
+  .image-element img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 4px;
+    display: block;
+  }
+
+  /* Properties panel */
+  .properties-panel {
+    width: 280px;
+    background: white;
+    border-left: 1px solid #ddd;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .properties-panel h3 {
+    margin-top: 0;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 8px;
+    color: #007bff;
+  }
+  .form-group {
+    margin-bottom: 15px;
+  }
+  label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+    color: #555;
+  }
+  input[type="text"], input[type="url"], textarea, select {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 0.9rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  textarea {
+    resize: vertical;
+  }
+  button.btn-danger {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    font-weight: 500;
+  }
+  button.btn-danger:hover {
+    background-color: #c82333;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 900px) {
+    .builder-wrapper {
+      flex-direction: column;
+    }
+    .sidebar, .properties-panel {
+      width: 100%;
+      border: none;
+      max-height: 150px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+    .sidebar h3, .properties-panel h3 {
+      border: none;
+      padding: 0 10px 0 10px;
+      flex-shrink: 0;
+    }
+    .draggable-element {
+      margin: 0 10px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .properties-panel {
+      max-height: 200px;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    .canvas-container {
+      flex: 1;
+      min-height: 400px;
+      padding: 0.5rem;
+    }
+    .canvas {
+      min-height: 400px;
+      max-width: 100%;
+    }
+  }
+</style>
+</head>
+<body>
+<header>Drag-and-Drop Website Builder Prototype By Abhishek Jangid</header>
+<div id="root"></div>
+
+<script type="text/babel">
+
+const { useState, useRef, useEffect } = React;
+
+// Available elements definitions
+const ELEMENT_TYPES = {
+  Text: {
+    id: 'text',
+    name: 'Text',
+    defaultProps: { content: 'Edit me...' },
+  },
+  Image: {
+    id: 'image',
+    name: 'Image',
+    defaultProps: { src: 'https://via.placeholder.com/150', alt: 'Placeholder Image' },
+  },
+  Button: {
+    id: 'button',
+    name: 'Button',
+    defaultProps: { label: 'Click me', url: '' },
+  },
+};
+
+// Helper function to generate random IDs for elements
+const generateId = () => '_' + Math.random().toString(36).substr(2, 9);
+
+// Draggable element in sidebar
+function DraggableElement({ elementType }) {
+  const handleDragStart = (e) => {
+    // Attach the element type id to dataTransfer for drop
+    e.dataTransfer.setData('application/my-app-element', elementType.id);
+    // Set drag image offset for better user experience
+    const dragImage = document.createElement('div');
+    dragImage.style.position = 'absolute';
+    dragImage.style.top = '-9999px';
+    dragImage.style.left = '-9999px';
+    dragImage.style.padding = '4px 10px';
+    dragImage.style.background = '#007bff';
+    dragImage.style.color = 'white';
+    dragImage.style.fontWeight = 'bold';
+    dragImage.style.borderRadius = '4px';
+    dragImage.textContent = elementType.name;
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 10, 10);
+    setTimeout(() => document.body.removeChild(dragImage), 0);
+  };
+
+  return (
+    <div
+      draggable
+      className="draggable-element"
+      onDragStart={handleDragStart}
+      title={`Drag to add a ${elementType.name}`}
+    >
+      {elementType.name}
+    </div>
+  );
+}
+
+// Single element rendered on the canvas with draggable positioning
+function CanvasElement({
+  element,
+  selected,
+  onSelect,
+  onMove,
+}) {
+  const elRef = useRef(null);
+  const dragInfo = useRef({ x: 0, y: 0, dragging: false });
+
+  // Mouse and touch handlers for dragging on canvas
+  const onPointerDown = (e) => {
+    e.stopPropagation();
+    onSelect(element.id);
+    dragInfo.current = {
+      x: e.clientX,
+      y: e.clientY,
+      dragging: true,
+      originalLeft: element.left,
+      originalTop: element.top,
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragInfo.current.dragging) return;
+    e.preventDefault();
+    const dx = e.clientX - dragInfo.current.x;
+    const dy = e.clientY - dragInfo.current.y;
+    let newLeft = dragInfo.current.originalLeft + dx;
+    let newTop = dragInfo.current.originalTop + dy;
+    // Limit movement within canvas bounds (assumed 0 minimum)
+    if (newLeft < 0) newLeft = 0;
+    if (newTop < 0) newTop = 0;
+
+    onMove(element.id, newLeft, newTop);
+  };
+
+  const onPointerUp = (e) => {
+    dragInfo.current.dragging = false;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+  };
+
+  let content = null;
+  switch (element.type) {
+    case ELEMENT_TYPES.Text.id:
+      content = (
+        <div className="text-element" style={{whiteSpace: 'pre-wrap'}}>
+          {element.props.content}
+        </div>
+      );
+      break;
+    case ELEMENT_TYPES.Image.id:
+      content = (
+        <div className="image-element">
+          <img src={element.props.src} alt={element.props.alt || "image"} />
+        </div>
+      );
+      break;
+    case ELEMENT_TYPES.Button.id:
+      content = (
+        <button
+          type="button"
+          className="button-element"
+          onClick={() => {
+            if (element.props.url) {
+              window.open(element.props.url, '_blank');
+            }
+          }}
+        >
+          {element.props.label}
+        </button>
+      );
+      break;
+    default:
+      content = <div>Unknown element</div>;
+  }
+
+  return (
+    <div
+      ref={elRef}
+      onPointerDown={onPointerDown}
+      className={"canvas-element " + (selected ? "selected" : "")}
+      style={{
+        left: element.left,
+        top: element.top,
+        width: element.width ? element.width : 'auto',
+        height: element.height ? element.height : 'auto',
+        zIndex: selected ? 1000 : 1,
+      }}
+      tabIndex={0}
+      aria-label={`Canvas element: ${element.type}`}
+    >
+      {content}
+    </div>
+  );
+}
+
+// Properties form for the selected element
+function PropertiesPanel({ element, onChange, onDelete }) {
+  if (!element) {
+    return (
+      <div className="properties-panel">
+        <h3>Properties</h3>
+        <p>Select an element on the canvas to edit its properties.</p>
+      </div>
+    );
+  }
+
+  // Handlers for input changes with debouncing could be added later
+  const handleChange = (field, value) => {
+    onChange({ ...element, props: { ...element.props, [field]: value } });
+  };
+
+  const renderForm = () => {
+    switch (element.type) {
+      case ELEMENT_TYPES.Text.id:
+        return (
+          <div className="form-group">
+            <label htmlFor="content">Text content</label>
+            <textarea
+              id="content"
+              rows="4"
+              value={element.props.content || ''}
+              onChange={e => handleChange('content', e.target.value)}
+            />
+          </div>
+        );
+      case ELEMENT_TYPES.Image.id:
+        return (
+          <>
+            <div className="form-group">
+              <label htmlFor="src">Image URL</label>
+              <input
+                type="url"
+                id="src"
+                value={element.props.src || ''}
+                onChange={e => handleChange('src', e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="alt">Alt text</label>
+              <input
+                type="text"
+                id="alt"
+                value={element.props.alt || ''}
+                onChange={e => handleChange('alt', e.target.value)}
+              />
+            </div>
+          </>
+        );
+      case ELEMENT_TYPES.Button.id:
+        return (
+          <>
+            <div className="form-group">
+              <label htmlFor="label">Button label</label>
+              <input
+                type="text"
+                id="label"
+                value={element.props.label || ''}
+                onChange={e => handleChange('label', e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="url">Link URL</label>
+              <input
+                type="url"
+                id="url"
+                value={element.props.url || ''}
+                onChange={e => handleChange('url', e.target.value)}
+              />
+            </div>
+          </>
+        );
+      default:
+        return <p>No properties available for this element.</p>;
+    }
+  };
+
+  return (
+    <div className="properties-panel">
+      <h3>{ELEMENT_TYPES[element.type.charAt(0).toUpperCase() + element.type.slice(1)]?.name || "Element"} Properties</h3>
+      {renderForm()}
+      <button className="btn-danger" onClick={() => onDelete(element.id)}>Delete Element</button>
+    </div>
+  );
+}
+
+// Main app component
+function App() {
+  const [canvasElements, setCanvasElements] = useState([]);
+  const [selectedElementId, setSelectedElementId] = useState(null);
+  const canvasRef = useRef(null);
+
+  // Handler for dropping an element on the canvas
+  const onDrop = (e) => {
+    e.preventDefault();
+    const elementTypeId = e.dataTransfer.getData('application/my-app-element');
+    if (!elementTypeId) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    // Calculate drop position relative to canvas container top-left
+    const left = e.clientX - rect.left;
+    const top = e.clientY - rect.top;
+
+    // Create new element with default properties and dropped position
+    const newElement = {
+      id: generateId(),
+      type: elementTypeId,
+      props: { ...ELEMENT_TYPES[Object.keys(ELEMENT_TYPES).find(key => ELEMENT_TYPES[key].id === elementTypeId)]?.defaultProps },
+      left,
+      top,
+    };
+
+    setCanvasElements(prev => [...prev, newElement]);
+    setSelectedElementId(newElement.id);
+  };
+
+  // Enable drop on canvas container
+  const onDragOver = (e) => e.preventDefault();
+
+  // Update element position
+  const moveElement = (id, newLeft, newTop) => {
+    setCanvasElements(prev =>
+      prev.map(el => (el.id === id ? { ...el, left: newLeft, top: newTop } : el))
+    );
+  };
+
+  // Update element properties
+  const updateElementProps = (updatedElement) => {
+    setCanvasElements(prev =>
+      prev.map(el => (el.id === updatedElement.id ? updatedElement : el))
+    );
+  };
+
+  // Delete element
+  const deleteElement = (id) => {
+    setCanvasElements(prev => prev.filter(el => el.id !== id));
+    if (selectedElementId === id) {
+      setSelectedElementId(null);
+    }
+  };
+
+  // Keyboard accessibility: Deselect on click outside canvas elements
+  const onCanvasClick = (e) => {
+    if (e.target === canvasRef.current) {
+      setSelectedElementId(null);
+    }
+  };
+
+  const selectedElement = canvasElements.find(el => el.id === selectedElementId);
+
+  return (
+    <>
+      <div className="builder-wrapper">
+        <aside className="sidebar">
+          <h3>Elements</h3>
+          {Object.values(ELEMENT_TYPES).map(elType => (
+            <DraggableElement key={elType.id} elementType={elType} />
+          ))}
+        </aside>
+        <main className="canvas-container" onDrop={onDrop} onDragOver={onDragOver} ref={canvasRef} onClick={onCanvasClick} aria-label="Canvas area for building website">
+          <div className="canvas" tabIndex={0} aria-live="polite" aria-atomic="true" aria-relevant="additions removals">
+            {/* Template grid for visual guidance */}
+            <div className="canvas-grid" aria-hidden="true">
+              {[...Array(12 * 20)].map((_, i) => (<div key={i} />))}
+            </div>
+            {/* Render elements on canvas */}
+            {canvasElements.map(el => (
+              <CanvasElement
+                key={el.id}
+                element={el}
+                selected={el.id === selectedElementId}
+                onSelect={setSelectedElementId}
+                onMove={moveElement}
+              />
+            ))}
+          </div>
+        </main>
+        <aside className="properties-panel" aria-label="Properties panel for editing element">
+          <PropertiesPanel element={selectedElement} onChange={updateElementProps} onDelete={deleteElement} />
+        </aside>
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+</body>
+</html>
+
